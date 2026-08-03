@@ -86,6 +86,26 @@ export function renderGrid(ctx, width, height, frame) {
   }
 }
 
+// Wall/empty/visited cells keep their normal colors; path cells (the found
+// route) draw white until revealed, then green, in start-to-goal order.
+export function renderMazeReveal(ctx, width, height, frame, revealedCells) {
+  clear(ctx, width, height);
+  if (!frame || !frame.grid) return;
+  const grid = frame.grid;
+  const rows = grid.length;
+  const cols = grid[0].length;
+  const cellW = width / cols;
+  const cellH = height / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cellType = grid[r][c];
+      ctx.fillStyle =
+        cellType === 'path' ? (revealedCells.has(`${r},${c}`) ? '#4caf72' : '#ffffff') : CELL_COLORS[cellType] || CELL_COLORS.empty;
+      ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
+    }
+  }
+}
+
 export function renderGraph(ctx, width, height, frame) {
   clear(ctx, width, height);
   if (!frame || !frame.nodes) return;
@@ -106,6 +126,32 @@ export function renderGraph(ctx, width, height, frame) {
     ctx.beginPath();
     ctx.arc(pos[i][0], pos[i][1], 10, 0, Math.PI * 2);
     ctx.fillStyle = i === current ? '#f2b344' : visited.includes(i) ? '#4caf72' : '#5b7fff';
+    ctx.fill();
+  });
+}
+
+// Nodes in revealedIds draw green, everything else white - same white-to-green
+// wipe as the sorting reveal, applied to graph nodes instead of bars.
+export function renderGraphReveal(ctx, width, height, frame, revealedIds) {
+  clear(ctx, width, height);
+  if (!frame || !frame.nodes) return;
+  const { nodes, edges } = frame;
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(width, height) / 2 - 20;
+  const pos = nodes.map((n) => [cx + n.x * radius, cy + n.y * radius]);
+  ctx.strokeStyle = '#333a4d';
+  ctx.lineWidth = 1;
+  edges.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(pos[a][0], pos[a][1]);
+    ctx.lineTo(pos[b][0], pos[b][1]);
+    ctx.stroke();
+  });
+  nodes.forEach((n, i) => {
+    ctx.beginPath();
+    ctx.arc(pos[i][0], pos[i][1], 10, 0, Math.PI * 2);
+    ctx.fillStyle = revealedIds.has(i) ? '#4caf72' : '#ffffff';
     ctx.fill();
   });
 }
@@ -159,6 +205,56 @@ export function renderTree(ctx, width, height, frame) {
   drawNodes(root);
 }
 
+// Nodes in revealedIds draw green, everything else white.
+export function renderTreeReveal(ctx, width, height, frame, revealedIds) {
+  clear(ctx, width, height);
+  if (!frame || !frame.root) return;
+  const { root, positions } = frame;
+  let maxX = 0;
+  let maxY = 0;
+  positions.forEach((p) => {
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  });
+  const stepX = width / (maxX + 2);
+  const stepY = height / (maxY + 2);
+  const coord = (id) => {
+    const p = positions.get(id);
+    return [stepX * (p.x + 1), stepY * (p.y + 1)];
+  };
+  ctx.strokeStyle = '#333a4d';
+  function drawEdges(node) {
+    if (!node) return;
+    const [x, y] = coord(node.id);
+    for (const child of [node.left, node.right]) {
+      if (!child) continue;
+      const [cx, cy] = coord(child.id);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+      drawEdges(child);
+    }
+  }
+  drawEdges(root);
+  function drawNodes(node) {
+    if (!node) return;
+    const [x, y] = coord(node.id);
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = revealedIds.has(node.id) ? '#4caf72' : '#ffffff';
+    ctx.fill();
+    ctx.fillStyle = '#0d0f16';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.value, x, y);
+    drawNodes(node.left);
+    drawNodes(node.right);
+  }
+  drawNodes(root);
+}
+
 export function renderDpGrid(ctx, width, height, frame) {
   clear(ctx, width, height);
   if (!frame || !frame.table) return;
@@ -184,6 +280,28 @@ export function renderDpGrid(ctx, width, height, frame) {
   }
 }
 
+// Cells in revealedCells draw green, other computed cells draw white,
+// never-computed cells (memoized search left them at -1) stay background-dark.
+export function renderDpReveal(ctx, width, height, frame, revealedCells) {
+  clear(ctx, width, height);
+  if (!frame || !frame.table) return;
+  const table = frame.table;
+  const rows = table.length;
+  const cols = table[0].length;
+  const cellW = width / cols;
+  const cellH = height / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (table[r][c] < 0) {
+        ctx.fillStyle = '#12141c';
+      } else {
+        ctx.fillStyle = revealedCells.has(`${r},${c}`) ? '#4caf72' : '#ffffff';
+      }
+      ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
+    }
+  }
+}
+
 export function renderStringMatch(ctx, width, height, frame) {
   clear(ctx, width, height);
   if (!frame || !frame.text) return;
@@ -195,6 +313,29 @@ export function renderStringMatch(ctx, width, height, frame) {
     let color = '#1b1e29';
     if (matches.some((m) => i >= m && i < m + patternLength)) color = '#4caf72';
     else if (i === textIndex) color = '#f2b344';
+    ctx.fillStyle = color;
+    ctx.fillRect(i * cellW, rowY, cellW - 1, 30);
+    ctx.fillStyle = '#e6e8ef';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(text[i], i * cellW + cellW / 2, rowY + 20);
+  }
+}
+
+// Match regions reveal green in the order they were found (already left to
+// right); everything else stays the normal neutral background.
+export function renderStringReveal(ctx, width, height, frame, revealedMatchCount) {
+  clear(ctx, width, height);
+  if (!frame || !frame.text) return;
+  const { text, pattern, matches = [] } = frame;
+  const cellW = width / text.length;
+  const rowY = height / 2 - 15;
+  const patternLength = pattern ? pattern.length : 0;
+  const revealedStarts = new Set(matches.slice(0, revealedMatchCount));
+  for (let i = 0; i < text.length; i++) {
+    const matchStart = matches.find((m) => i >= m && i < m + patternLength);
+    let color = '#1b1e29';
+    if (matchStart !== undefined) color = revealedStarts.has(matchStart) ? '#4caf72' : '#ffffff';
     ctx.fillStyle = color;
     ctx.fillRect(i * cellW, rowY, cellW - 1, 30);
     ctx.fillStyle = '#e6e8ef';

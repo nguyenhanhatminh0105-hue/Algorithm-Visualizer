@@ -32,6 +32,14 @@ export function valueToTone(value, maxValue = 100) {
   return SCALE_HZ[Math.round(ratio * (SCALE_HZ.length - 1))];
 }
 
+// Same scale, but for sequences with no numeric value to key off (visit order,
+// path order, match order) - maps a 0..total-1 rank to an ascending pitch.
+export function positionToTone(index, total) {
+  if (total <= 1) return SCALE_HZ[0];
+  const ratio = index / (total - 1);
+  return SCALE_HZ[Math.round(ratio * (SCALE_HZ.length - 1))];
+}
+
 export function playTone(frequency, durationMs, delaySec = 0) {
   if (isMuted) return;
   const { ctx, compressor } = getAudioGraph();
@@ -63,20 +71,26 @@ export function playFinish() {
   playTone(SCALE_HZ[8], 140, 0.09);
 }
 
-// Replays every value in the finished array as a quick ascending run, low to
-// high, using the same pentatonic mapping as the per-step tones - a victory
-// sweep through the same sounds that played along the way.
-export function playSweep(values, totalDurationMs = 700) {
-  if (isMuted || !values.length) return;
+// Plays an already-ordered list of pitches in sequence, sampling down to a
+// manageable note count if there are many, spread evenly across the duration.
+function playPitchSequence(pitches, totalDurationMs) {
+  if (isMuted || !pitches.length) return;
   const maxNotes = 24;
-  const stride = Math.max(1, Math.ceil(values.length / maxNotes));
-  const sorted = [...values].sort((a, b) => a - b);
+  const stride = Math.max(1, Math.ceil(pitches.length / maxNotes));
   const sampled = [];
-  for (let i = 0; i < sorted.length; i += stride) sampled.push(sorted[i]);
-  if (sampled[sampled.length - 1] !== sorted[sorted.length - 1]) sampled.push(sorted[sorted.length - 1]);
+  for (let i = 0; i < pitches.length; i += stride) sampled.push(pitches[i]);
+  if (sampled[sampled.length - 1] !== pitches[pitches.length - 1]) sampled.push(pitches[pitches.length - 1]);
 
   const noteGap = totalDurationMs / sampled.length;
-  sampled.forEach((value, i) => {
-    playTone(valueToTone(value), noteGap * 1.3, (i * noteGap) / 1000);
+  sampled.forEach((hz, i) => {
+    playTone(hz, noteGap * 1.3, (i * noteGap) / 1000);
   });
+}
+
+// Plays an already-ordered, already-pitched sequence as a quick ascending run
+// (low to high) - a victory sweep through the same sounds that played along
+// the way. Callers compute the ordering and pitches themselves (valueToTone
+// for numeric values, positionToTone for rank-only sequences like visit order).
+export function playSequenceSweep(pitches, totalDurationMs = 700) {
+  playPitchSequence(pitches, totalDurationMs);
 }

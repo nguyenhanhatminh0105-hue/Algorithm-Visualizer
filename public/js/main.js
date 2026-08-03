@@ -1,6 +1,7 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
 import { playTone, playStep, playFinish, setMuted } from './audio.js';
+import { DEFAULT_STEP_DELAY_MS } from './config.js';
 
 const categorySelect = document.getElementById('category-select');
 const categoryDescription = document.getElementById('category-description');
@@ -15,7 +16,6 @@ const runBtn = document.getElementById('run-btn');
 const pauseBtn = document.getElementById('pause-btn');
 const resetBtn = document.getElementById('reset-btn');
 const muteBtn = document.getElementById('mute-btn');
-const speedRange = document.getElementById('speed-range');
 const statusEl = document.getElementById('status');
 
 let currentCategory = CATEGORIES[0];
@@ -147,10 +147,6 @@ difficultyRange.addEventListener('input', () => {
 
 categorySelect.addEventListener('change', () => selectCategory(categorySelect.value));
 
-speedRange.addEventListener('input', () => {
-  if (engine) engine.setSpeed(Number(speedRange.value));
-});
-
 runBtn.addEventListener('click', () => {
   if (contenders.length < 2) {
     setStatus('Add at least two contenders before running.');
@@ -171,7 +167,7 @@ runBtn.addEventListener('click', () => {
   });
 
   engine = new Engine({
-    stepsPerTick: Number(speedRange.value),
+    stepsPerTick: Math.max(1, Math.round(DEFAULT_STEP_DELAY_MS / 500)),
     onTick(allRuns) {
       allRuns.forEach((run) => {
         const panel = panels.get(run.id);

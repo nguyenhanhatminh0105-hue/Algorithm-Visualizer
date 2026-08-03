@@ -1,6 +1,6 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
-import { playTone, playStep, playFinish } from './audio.js';
+import { playTone, playStep, playFinish, setMuted } from './audio.js';
 
 const categorySelect = document.getElementById('category-select');
 const categoryDescription = document.getElementById('category-description');
@@ -14,6 +14,7 @@ const arena = document.getElementById('arena');
 const runBtn = document.getElementById('run-btn');
 const pauseBtn = document.getElementById('pause-btn');
 const resetBtn = document.getElementById('reset-btn');
+const muteBtn = document.getElementById('mute-btn');
 const speedRange = document.getElementById('speed-range');
 const statusEl = document.getElementById('status');
 
@@ -22,6 +23,7 @@ let contenders = [];
 let panels = new Map();
 let engine = null;
 let uidCounter = 0;
+let isMuted = false;
 const lastRunSteps = new Map();
 const lastRunDone = new Map();
 
@@ -199,6 +201,12 @@ resetBtn.addEventListener('click', () => {
   if (engine) engine.pause();
   renderArena();
   setStatus('Reset. Press Run to start again.');
+});
+
+muteBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  setMuted(isMuted);
+  muteBtn.textContent = isMuted ? 'Muted' : 'Mute';
 });
 
 populateCategories();

@@ -1,4 +1,5 @@
 let sharedAudioContext = null;
+let isMuted = false;
 
 function getAudioContext() {
   if (!sharedAudioContext) {
@@ -7,7 +8,12 @@ function getAudioContext() {
   return sharedAudioContext;
 }
 
+export function setMuted(value) {
+  isMuted = value;
+}
+
 export function playTone(frequency, durationMs) {
+  if (isMuted) return;
   const ctx = getAudioContext();
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();

@@ -2,6 +2,7 @@ import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
 import { playTone, playStep, playFinish, playSweep, setMuted, valueToTone } from './audio.js';
 import { DEFAULT_STEP_DELAY_MS } from './config.js';
+import { renderReveal } from './render.js';
 
 const categorySelect = document.getElementById('category-select');
 const categoryDescription = document.getElementById('category-description');
@@ -132,6 +133,26 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
+// Paints a white-to-green reveal wipe on panel's canvas over totalDurationMs,
+// low value to high, matching the pacing of the finish sweep sound. Sets
+// panel.revealing so the engine's normal per-tick render leaves this canvas
+// alone until the wipe finishes (it would otherwise redraw over it every frame).
+function animateReveal(panel, array, totalDurationMs = 700) {
+  panel.revealing = true;
+  const start = performance.now();
+  function tick(now) {
+    const elapsed = now - start;
+    const revealedCount = Math.min(array.length, Math.round((elapsed / totalDurationMs) * array.length));
+    renderReveal(panel.ctx, panel.canvas.width, panel.canvas.height, array, revealedCount);
+    if (elapsed < totalDurationMs) {
+      requestAnimationFrame(tick);
+    } else {
+      panel.revealing = false;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 addContenderBtn.addEventListener('click', () => {
   const algorithm = currentCategory.algorithms.find((a) => a.id === algorithmSelect.value);
   if (!algorithm) return;
@@ -172,7 +193,9 @@ runBtn.addEventListener('click', () => {
       allRuns.forEach((run) => {
         const panel = panels.get(run.id);
         if (!panel) return;
-        currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, run.frame);
+        if (!panel.revealing) {
+          currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, run.frame);
+        }
         panel.meta.textContent = `Steps: ${run.steps}${run.done ? ' — finished' : ''}`;
         panel.panel.classList.toggle('finished', run.done);
 
@@ -192,6 +215,7 @@ runBtn.addEventListener('click', () => {
           const finishedArray = run.frame && run.frame.array;
           if (Array.isArray(finishedArray) && finishedArray.every((v) => typeof v === 'number')) {
             playSweep(finishedArray);
+            animateReveal(panel, finishedArray);
           } else {
             playFinish();
           }

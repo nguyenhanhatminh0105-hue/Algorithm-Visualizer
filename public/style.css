@@ -1,12 +1,22 @@
 :root {
   color-scheme: dark;
-  font-family: system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
+
+  --bg: #0d0f16;
+  --surface: #161923;
+  --surface-alt: #1b1e29;
+  --border: #23273a;
+  --border-strong: #333a4d;
+  --text: #e6e8ef;
+  --text-muted: #9aa0b4;
+  --accent: #5b7fff;
+  --accent-secondary: #7c5cff;
 }
 
 body {
   margin: 0;
-  background: #0d0f16;
-  color: #e6e8ef;
+  background: var(--bg);
+  color: var(--text);
 }
 
 header {
@@ -16,6 +26,8 @@ header {
 
 header h1 {
   margin: 0 0 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 main {
@@ -64,7 +76,7 @@ button {
 }
 
 button:hover {
-  border-color: #5b7fff;
+  border-color: var(--accent);
 }
 
 .hint {

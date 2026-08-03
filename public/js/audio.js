@@ -27,3 +27,11 @@ export function playTone(frequency, durationMs) {
   oscillator.start(now);
   oscillator.stop(now + durationSec);
 }
+
+export function playStep() {
+  playTone(440, 40);
+}
+
+export function playFinish() {
+  playTone(880, 200);
+}

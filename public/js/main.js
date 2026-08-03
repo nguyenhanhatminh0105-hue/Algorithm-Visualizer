@@ -1,5 +1,6 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
+import { playTone, playStep, playFinish } from './audio.js';
 
 const categorySelect = document.getElementById('category-select');
 const categoryDescription = document.getElementById('category-description');
@@ -21,6 +22,8 @@ let contenders = [];
 let panels = new Map();
 let engine = null;
 let uidCounter = 0;
+const lastRunSteps = new Map();
+const lastRunDone = new Map();
 
 function populateCategories() {
   categorySelect.innerHTML = '';
@@ -137,6 +140,9 @@ runBtn.addEventListener('click', () => {
   const problem = currentCategory.createProblem(difficulty);
   renderArena();
 
+  lastRunSteps.clear();
+  lastRunDone.clear();
+
   const runs = contenders.map((contender) => {
     const generator = currentCategory.createRun(contender.algorithm, problem);
     return new ContenderRun(contender.uid, contender.name, generator);
@@ -151,6 +157,23 @@ runBtn.addEventListener('click', () => {
         currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, run.frame);
         panel.meta.textContent = `Steps: ${run.steps}${run.done ? ' — finished' : ''}`;
         panel.panel.classList.toggle('finished', run.done);
+
+        if (run.steps !== lastRunSteps.get(run.id)) {
+          lastRunSteps.set(run.id, run.steps);
+          const touched = run.frame && (run.frame.compare || run.frame.swap);
+          const index = touched && touched[0];
+          const value = run.frame && run.frame.array && index != null ? run.frame.array[index] : undefined;
+          if (typeof value === 'number') {
+            playTone(200 + value * 4, 40);
+          } else {
+            playStep();
+          }
+        }
+
+        if (run.done && !lastRunDone.get(run.id)) {
+          playFinish();
+        }
+        lastRunDone.set(run.id, run.done);
       });
       if (allRuns.every((run) => run.done)) {
         const winner = allRuns.reduce((best, run) =>

@@ -1,6 +1,6 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
-import { playTone, playStep, playFinish, setMuted } from './audio.js';
+import { playTone, playStep, playFinish, setMuted, valueToTone } from './audio.js';
 import { DEFAULT_STEP_DELAY_MS } from './config.js';
 
 const categorySelect = document.getElementById('category-select');
@@ -182,7 +182,7 @@ runBtn.addEventListener('click', () => {
           const index = touched && touched[0];
           const value = run.frame && run.frame.array && index != null ? run.frame.array[index] : undefined;
           if (typeof value === 'number') {
-            playTone(200 + value * 4, 40);
+            playTone(valueToTone(value), 45);
           } else {
             playStep();
           }

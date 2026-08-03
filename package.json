@@ -1,0 +1,13 @@
+{
+  "name": "algorithm-arena",
+  "version": "0.1.0",
+  "description": "A website for visually comparing algorithms across sorting, pathfinding, graph traversal, and more.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

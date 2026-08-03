@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Algorithm Arena</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>Algorithm Arena</h1>
+  <p>Pick a category, tune the difficulty, add contenders, and watch them race.</p>
+</header>
+<main>
+  <section class="controls">
+    <div class="control-group">
+      <label for="category-select">Category</label>
+      <select id="category-select"></select>
+      <p id="category-description" class="hint"></p>
+    </div>
+    <div class="control-group">
+      <label id="difficulty-label" for="difficulty-range">Difficulty</label>
+      <input type="range" id="difficulty-range" />
+      <span id="difficulty-value"></span>
+    </div>
+    <div class="control-group">
+      <label for="algorithm-select">Algorithm</label>
+      <select id="algorithm-select"></select>
+      <button id="add-contender" type="button">Add contender</button>
+    </div>
+    <div class="control-group">
+      <label>Contenders</label>
+      <ul id="contender-list"></ul>
+    </div>
+    <div class="control-group">
+      <label for="speed-range">Speed</label>
+      <input type="range" id="speed-range" min="1" max="20" value="3" />
+    </div>
+    <div class="control-group buttons">
+      <button id="run-btn" type="button">Run</button>
+      <button id="pause-btn" type="button">Pause</button>
+      <button id="reset-btn" type="button">Reset</button>
+    </div>
+    <p id="status" class="status"></p>
+  </section>
+  <section id="arena" class="arena"></section>
+</main>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

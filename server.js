@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.join(__dirname, 'public');
+const publicDir = path.resolve(__dirname, 'public');
 const port = process.env.PORT || 3000;
 
 const MIME_TYPES = {
@@ -19,9 +19,9 @@ const server = http.createServer((req, res) => {
   const safePath = path
     .normalize(requestedPath === '/' ? '/index.html' : requestedPath)
     .replace(/^(\.\.[/\\])+/, '');
-  const filePath = path.join(publicDir, safePath);
+  const filePath = path.resolve(publicDir, `.${path.sep}${safePath}`);
 
-  if (!filePath.startsWith(publicDir)) {
+  if (filePath !== publicDir && !filePath.startsWith(publicDir + path.sep)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;

@@ -21,6 +21,26 @@ export function renderBars(ctx, width, height, frame) {
   });
 }
 
+// Draws every bar white except the lowest-valued revealedCount of them, which
+// draw green - used to paint a low-to-high reveal wipe in sync with the finish
+// sweep sound, independent of whatever colors the live algorithm animation used.
+export function renderReveal(ctx, width, height, array, revealedCount) {
+  clear(ctx, width, height);
+  const max = Math.max(...array, 1);
+  const barWidth = width / array.length;
+  const revealed = new Set(
+    array
+      .map((value, i) => i)
+      .sort((a, b) => array[a] - array[b])
+      .slice(0, revealedCount),
+  );
+  array.forEach((value, i) => {
+    const barHeight = (value / max) * (height - 10);
+    ctx.fillStyle = revealed.has(i) ? '#4caf72' : '#ffffff';
+    ctx.fillRect(i * barWidth + 1, height - barHeight, barWidth - 2, barHeight);
+  });
+}
+
 export function renderSearch(ctx, width, height, frame) {
   clear(ctx, width, height);
   if (!frame || !frame.array) return;

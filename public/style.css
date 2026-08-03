@@ -20,12 +20,13 @@ body {
 }
 
 header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #23273a;
+  padding: 2rem 2rem 1.75rem;
+  background: linear-gradient(135deg, rgba(91, 127, 255, 0.14), rgba(124, 92, 255, 0.05));
+  border-bottom: 2px solid var(--accent);
 }
 
 header h1 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.35rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -122,8 +123,13 @@ input[type="range"]:focus-visible {
 }
 
 .status {
+  display: inline-block;
   font-size: 0.85rem;
+  font-weight: 600;
   color: #f2b344;
+  background: rgba(242, 179, 68, 0.15);
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
   min-height: 1.2em;
 }
 

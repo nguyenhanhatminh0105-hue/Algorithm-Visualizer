@@ -37,6 +37,23 @@ function populateCategories() {
   });
 }
 
+function removeAlgorithmOption(algorithmId) {
+  const option = algorithmSelect.querySelector(`option[value="${algorithmId}"]`);
+  if (option) option.remove();
+}
+
+function addAlgorithmOption(algorithm) {
+  const targetIndex = currentCategory.algorithms.findIndex((a) => a.id === algorithm.id);
+  const nextOption = Array.from(algorithmSelect.options).find((opt) => {
+    const idx = currentCategory.algorithms.findIndex((a) => a.id === opt.value);
+    return idx > targetIndex;
+  });
+  const option = document.createElement('option');
+  option.value = algorithm.id;
+  option.textContent = algorithm.name;
+  algorithmSelect.insertBefore(option, nextOption || null);
+}
+
 function selectCategory(id) {
   currentCategory = CATEGORIES.find((category) => category.id === id) || CATEGORIES[0];
   categoryDescription.textContent = currentCategory.description;
@@ -49,6 +66,7 @@ function selectCategory(id) {
 
   algorithmSelect.innerHTML = '';
   currentCategory.algorithms.forEach((algorithm) => {
+    if (contenders.some((contender) => contender.algorithm.id === algorithm.id)) return;
     const option = document.createElement('option');
     option.value = algorithm.id;
     option.textContent = algorithm.name;
@@ -73,6 +91,7 @@ function renderContenderList() {
     removeButton.className = 'remove-btn';
     removeButton.addEventListener('click', () => {
       contenders.splice(index, 1);
+      addAlgorithmOption(contender.algorithm);
       renderContenderList();
       renderArena();
     });
@@ -117,6 +136,7 @@ addContenderBtn.addEventListener('click', () => {
   const algorithm = currentCategory.algorithms.find((a) => a.id === algorithmSelect.value);
   if (!algorithm) return;
   contenders.push({ uid: uidCounter++, algorithm, name: algorithm.name });
+  removeAlgorithmOption(algorithm.id);
   renderContenderList();
   renderArena();
 });

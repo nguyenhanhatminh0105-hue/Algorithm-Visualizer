@@ -8,7 +8,7 @@ function runSort(fn, list) {
   if (result && typeof result.next === 'function') {
     let step = result.next();
     while (!step.done) step = result.next();
-    if (Array.isArray(step.value)) return step.value;
+    if (step.value && Array.isArray(step.value.array)) return step.value.array;
     return input;
   }
   return Array.isArray(result) ? result : input;

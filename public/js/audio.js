@@ -62,3 +62,21 @@ export function playFinish() {
   playTone(SCALE_HZ[5], 90);
   playTone(SCALE_HZ[8], 140, 0.09);
 }
+
+// Replays every value in the finished array as a quick ascending run, low to
+// high, using the same pentatonic mapping as the per-step tones - a victory
+// sweep through the same sounds that played along the way.
+export function playSweep(values, totalDurationMs = 700) {
+  if (isMuted || !values.length) return;
+  const maxNotes = 24;
+  const stride = Math.max(1, Math.ceil(values.length / maxNotes));
+  const sorted = [...values].sort((a, b) => a - b);
+  const sampled = [];
+  for (let i = 0; i < sorted.length; i += stride) sampled.push(sorted[i]);
+  if (sampled[sampled.length - 1] !== sorted[sorted.length - 1]) sampled.push(sorted[sorted.length - 1]);
+
+  const noteGap = totalDurationMs / sampled.length;
+  sampled.forEach((value, i) => {
+    playTone(valueToTone(value), noteGap * 1.3, (i * noteGap) / 1000);
+  });
+}

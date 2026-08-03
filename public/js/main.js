@@ -1,6 +1,6 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
-import { playTone, playStep, playFinish, setMuted, valueToTone } from './audio.js';
+import { playTone, playStep, playFinish, playSweep, setMuted, valueToTone } from './audio.js';
 import { DEFAULT_STEP_DELAY_MS } from './config.js';
 
 const categorySelect = document.getElementById('category-select');
@@ -189,7 +189,12 @@ runBtn.addEventListener('click', () => {
         }
 
         if (run.done && !lastRunDone.get(run.id)) {
-          playFinish();
+          const finishedArray = run.frame && run.frame.array;
+          if (Array.isArray(finishedArray) && finishedArray.every((v) => typeof v === 'number')) {
+            playSweep(finishedArray);
+          } else {
+            playFinish();
+          }
         }
         lastRunDone.set(run.id, run.done);
       });

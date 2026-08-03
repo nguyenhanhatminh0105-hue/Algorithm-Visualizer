@@ -34,6 +34,12 @@ npm start
 
 Then open http://localhost:3000 in a browser.
 
+### Running tests
+
+```
+npm test
+```
+
 ## Project structure
 
 ```

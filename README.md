@@ -1,6 +1,6 @@
 # Algorithm Arena
 
-[![CI](https://github.com/Beepbob07/algorithm-arena/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Beepbob07/algorithm-arena/actions/workflows/ci.yml)
+[![CI](https://github.com/nguyenhanhatminh0105-hue/Algorithm-Visualizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nguyenhanhatminh0105-hue/Algorithm-Visualizer/actions/workflows/ci.yml)
 
 Algorithm Arena is a website for visually comparing algorithms. Pick a
 category, choose how hard the underlying problem should be, add two or more

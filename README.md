@@ -2,10 +2,14 @@
 
 [![CI](https://github.com/nguyenhanhatminh0105-hue/Algorithm-Visualizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nguyenhanhatminh0105-hue/Algorithm-Visualizer/actions/workflows/ci.yml)
 
+**[Live demo](https://nguyenhanhatminh0105-hue.github.io/Algorithm-Visualizer/)**: runs in the browser, nothing to install.
+
 Algorithm Arena is a website for visually comparing algorithms. Pick a
 category, choose how hard the underlying problem should be, add two or more
 algorithms as contenders, and watch them race against each other on the same
 problem instance.
+
+![A*, Dijkstra and breadth-first search racing through the same weighted maze](docs/screenshot.png)
 
 ## Categories
 

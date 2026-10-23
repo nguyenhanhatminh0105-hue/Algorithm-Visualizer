@@ -2,6 +2,7 @@ import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
 import { playTone, playStep, playFinish, playSequenceSweep, setMuted, valueToTone, positionToTone } from './audio.js';
 import { DEFAULT_STEP_DELAY_MS } from './config.js';
+import { defaultContenders, firstFrame } from './defaults.js';
 import {
   renderReveal,
   renderGraphReveal,
@@ -31,6 +32,7 @@ let contenders = [];
 let panels = new Map();
 let engine = null;
 let uidCounter = 0;
+let problem = null; // the next race's input, drawn in every panel before Run
 let isMuted = false;
 const lastRunSteps = new Map();
 const lastRunDone = new Map();
@@ -63,6 +65,7 @@ function addAlgorithmOption(algorithm) {
 }
 
 function selectCategory(id) {
+  stopRace();
   currentCategory = CATEGORIES.find((category) => category.id === id) || CATEGORIES[0];
   categoryDescription.textContent = currentCategory.description;
   difficultyLabel.textContent = currentCategory.difficulty.label;
@@ -71,6 +74,9 @@ function selectCategory(id) {
   difficultyRange.step = currentCategory.difficulty.step;
   difficultyRange.value = currentCategory.difficulty.default;
   difficultyValue.textContent = difficultyRange.value;
+
+  contenders = defaultContenders(currentCategory).map((algorithm) => ({ uid: uidCounter++, algorithm, name: algorithm.name }));
+  problem = null;
 
   algorithmSelect.innerHTML = '';
   currentCategory.algorithms.forEach((algorithm) => {
@@ -81,10 +87,9 @@ function selectCategory(id) {
     algorithmSelect.appendChild(option);
   });
 
-  contenders = [];
   renderContenderList();
   renderArena();
-  setStatus('Add at least two contenders, then press Run.');
+  setStatus('Ready. Press Run to start the race.');
 }
 
 function renderContenderList() {
@@ -98,6 +103,7 @@ function renderContenderList() {
     removeButton.textContent = 'Remove';
     removeButton.className = 'remove-btn';
     removeButton.addEventListener('click', () => {
+      stopRace();
       contenders.splice(index, 1);
       addAlgorithmOption(contender.algorithm);
       renderContenderList();
@@ -134,6 +140,23 @@ function renderArena() {
 
     panels.set(contender.uid, { canvas, ctx: canvas.getContext('2d'), meta, panel });
   });
+  drawStartingFrames();
+}
+
+/** Draws each contender at its starting position, so the arena is never an empty box. */
+function drawStartingFrames() {
+  if (!problem) problem = currentCategory.createProblem(Number(difficultyRange.value));
+  contenders.forEach((contender) => {
+    const panel = panels.get(contender.uid);
+    const frame = firstFrame(currentCategory, contender.algorithm, problem);
+    if (panel && frame) currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, frame);
+  });
+}
+
+/** Any change to the setup ends the current race, so it can't keep drawing into the new panels. */
+function stopRace() {
+  if (engine) engine.pause();
+  engine = null;
 }
 
 function setStatus(text) {
@@ -279,6 +302,7 @@ function animateReveal(panel, plan, totalDurationMs = 700) {
 addContenderBtn.addEventListener('click', () => {
   const algorithm = currentCategory.algorithms.find((a) => a.id === algorithmSelect.value);
   if (!algorithm) return;
+  stopRace();
   contenders.push({ uid: uidCounter++, algorithm, name: algorithm.name });
   removeAlgorithmOption(algorithm.id);
   renderContenderList();
@@ -287,6 +311,12 @@ addContenderBtn.addEventListener('click', () => {
 
 difficultyRange.addEventListener('input', () => {
   difficultyValue.textContent = difficultyRange.value;
+});
+difficultyRange.addEventListener('change', () => {
+  stopRace();
+  problem = null;
+  renderArena();
+  setStatus('Ready. Press Run to start the race.');
 });
 
 categorySelect.addEventListener('change', () => selectCategory(categorySelect.value));
@@ -298,15 +328,20 @@ runBtn.addEventListener('click', () => {
   }
   if (engine) engine.pause();
 
-  const difficulty = Number(difficultyRange.value);
-  const problem = currentCategory.createProblem(difficulty);
-  renderArena();
+  renderArena(); // draws the starting frames from `problem`, which this race then uses
+  // On a phone the race sits below the controls; bring it into view.
+  if (arena.getBoundingClientRect().top > innerHeight * 0.5) {
+    const instant = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    arena.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'start' });
+  }
+  const raceProblem = problem;
+  problem = null; // the next race gets a fresh input
 
   lastRunSteps.clear();
   lastRunDone.clear();
 
   const runs = contenders.map((contender) => {
-    const generator = currentCategory.createRun(contender.algorithm, problem);
+    const generator = currentCategory.createRun(contender.algorithm, raceProblem);
     return new ContenderRun(contender.uid, contender.name, generator);
   });
 
@@ -367,6 +402,7 @@ pauseBtn.addEventListener('click', () => {
 
 resetBtn.addEventListener('click', () => {
   if (engine) engine.pause();
+  problem = null;
   renderArena();
   setStatus('Reset. Press Run to start again.');
 });

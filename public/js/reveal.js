@@ -1,6 +1,6 @@
 // The finish animation: when a contender is done, its canvas wipes from white
 // to green in a meaningful order, in time with the finish sweep sound.
-import { valueToTone, positionToTone } from './audio.js';
+import { valueToTone, positionToTone } from './audio.js?v=2';
 import {
   renderReveal,
   renderGraphReveal,

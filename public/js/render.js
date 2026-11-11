@@ -58,12 +58,31 @@ export function renderSearch(ctx, width, height, frame) {
   });
 }
 
+// Walls are the canvas background, so they read as gaps between open cells.
 const CELL_COLORS = {
-  wall: '#2b2f3d',
-  empty: '#1b1e29',
-  visited: '#3a4a75',
+  wall: '#12141c',
+  empty: '#262b3b',
+  visited: '#3f5391',
   path: '#4caf72',
 };
+
+// Every maze runs from the top-left cell to the bottom-right one. A ring marks
+// the start and a filled dot the goal, drawn over whatever state the cell is in.
+function drawEndpoints(ctx, rows, cols, cellW, cellH) {
+  const radius = Math.max(2, Math.min(cellW, cellH) * 0.28);
+  const centre = (r, c) => [c * cellW + (cellW - 1) / 2, r * cellH + (cellH - 1) / 2];
+  ctx.lineWidth = Math.max(1.5, radius * 0.5);
+  ctx.strokeStyle = '#e6e8ef';
+  ctx.fillStyle = '#e6e8ef';
+  const [sx, sy] = centre(0, 0);
+  ctx.beginPath();
+  ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  const [gx, gy] = centre(rows - 1, cols - 1);
+  ctx.beginPath();
+  ctx.arc(gx, gy, radius * 1.15, 0, Math.PI * 2);
+  ctx.fill();
+}
 
 export function renderGrid(ctx, width, height, frame) {
   clear(ctx, width, height);
@@ -84,6 +103,7 @@ export function renderGrid(ctx, width, height, frame) {
     ctx.fillStyle = '#f2b344';
     ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
   }
+  drawEndpoints(ctx, rows, cols, cellW, cellH);
 }
 
 // Wall/empty/visited cells keep their normal colors; path cells (the found
@@ -104,6 +124,7 @@ export function renderMazeReveal(ctx, width, height, frame, revealedCells) {
       ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
     }
   }
+  drawEndpoints(ctx, rows, cols, cellW, cellH);
 }
 
 export function renderGraph(ctx, width, height, frame) {
@@ -195,7 +216,7 @@ export function renderTree(ctx, width, height, frame) {
     ctx.fillStyle = node.id === current ? '#f2b344' : visited.includes(node.id) ? '#4caf72' : '#5b7fff';
     ctx.fill();
     ctx.fillStyle = '#0d0f16';
-    ctx.font = '10px sans-serif';
+    ctx.font = '600 10px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(node.value, x, y);
@@ -245,7 +266,7 @@ export function renderTreeReveal(ctx, width, height, frame, revealedIds) {
     ctx.fillStyle = revealedIds.has(node.id) ? '#4caf72' : '#ffffff';
     ctx.fill();
     ctx.fillStyle = '#0d0f16';
-    ctx.font = '10px sans-serif';
+    ctx.font = '600 10px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(node.value, x, y);
@@ -302,24 +323,55 @@ export function renderDpReveal(ctx, width, height, frame, revealedCells) {
   }
 }
 
+// The text wraps onto as many rows as it needs for every character to stay
+// readable, with the pattern being searched for written above it.
+function drawStringCells(ctx, width, height, frame, colorAt) {
+  const { text, pattern = '' } = frame;
+  const header = 34;
+  const pad = 12;
+  const inner = width - pad * 2;
+  // Aim for cells about 24px wide, but never so many rows that they overflow.
+  let cols = Math.min(text.length, Math.max(8, Math.floor(inner / 24)));
+  const maxRows = Math.max(1, Math.floor((height - header - pad * 2) / 18));
+  if (Math.ceil(text.length / cols) > maxRows) cols = Math.ceil(text.length / maxRows);
+  const rows = Math.ceil(text.length / cols);
+  const cellW = inner / cols;
+  const cellH = Math.min(32, (height - header - pad * 2) / rows);
+  const blockTop = Math.max(pad, (height - header - rows * cellH) / 2);
+  const top = blockTop + header;
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = '12px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#9aa0b4';
+  ctx.fillText('Pattern', pad, blockTop + 12);
+  ctx.font = '600 13px ui-monospace, SFMono-Regular, Consolas, monospace';
+  ctx.fillStyle = '#e6e8ef';
+  ctx.fillText(pattern, pad + 54, blockTop + 12);
+
+  ctx.textAlign = 'center';
+  ctx.font = `${Math.min(13, Math.max(9, cellH * 0.5))}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+  for (let i = 0; i < text.length; i++) {
+    const x = pad + (i % cols) * cellW;
+    const y = top + Math.floor(i / cols) * cellH;
+    const color = colorAt(i);
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, cellW - 1, cellH - 1);
+    ctx.fillStyle = color === '#262b3b' ? '#e6e8ef' : '#0d0f16';
+    ctx.fillText(text[i], x + (cellW - 1) / 2, y + (cellH - 1) / 2 + 0.5);
+  }
+}
+
 export function renderStringMatch(ctx, width, height, frame) {
   clear(ctx, width, height);
   if (!frame || !frame.text) return;
-  const { text, pattern, textIndex, matches = [] } = frame;
-  const cellW = width / text.length;
-  const rowY = height / 2 - 15;
+  const { pattern, textIndex, matches = [] } = frame;
   const patternLength = pattern ? pattern.length : 0;
-  for (let i = 0; i < text.length; i++) {
-    let color = '#1b1e29';
-    if (matches.some((m) => i >= m && i < m + patternLength)) color = '#4caf72';
-    else if (i === textIndex) color = '#f2b344';
-    ctx.fillStyle = color;
-    ctx.fillRect(i * cellW, rowY, cellW - 1, 30);
-    ctx.fillStyle = '#e6e8ef';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(text[i], i * cellW + cellW / 2, rowY + 20);
-  }
+  drawStringCells(ctx, width, height, frame, (i) => {
+    if (matches.some((m) => i >= m && i < m + patternLength)) return '#4caf72';
+    if (i === textIndex) return '#f2b344';
+    return '#262b3b';
+  });
 }
 
 // Match regions reveal green in the order they were found (already left to
@@ -327,20 +379,12 @@ export function renderStringMatch(ctx, width, height, frame) {
 export function renderStringReveal(ctx, width, height, frame, revealedMatchCount) {
   clear(ctx, width, height);
   if (!frame || !frame.text) return;
-  const { text, pattern, matches = [] } = frame;
-  const cellW = width / text.length;
-  const rowY = height / 2 - 15;
+  const { pattern, matches = [] } = frame;
   const patternLength = pattern ? pattern.length : 0;
   const revealedStarts = new Set(matches.slice(0, revealedMatchCount));
-  for (let i = 0; i < text.length; i++) {
+  drawStringCells(ctx, width, height, frame, (i) => {
     const matchStart = matches.find((m) => i >= m && i < m + patternLength);
-    let color = '#1b1e29';
-    if (matchStart !== undefined) color = revealedStarts.has(matchStart) ? '#4caf72' : '#ffffff';
-    ctx.fillStyle = color;
-    ctx.fillRect(i * cellW, rowY, cellW - 1, 30);
-    ctx.fillStyle = '#e6e8ef';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(text[i], i * cellW + cellW / 2, rowY + 20);
-  }
+    if (matchStart === undefined) return '#262b3b';
+    return revealedStarts.has(matchStart) ? '#4caf72' : '#ffffff';
+  });
 }

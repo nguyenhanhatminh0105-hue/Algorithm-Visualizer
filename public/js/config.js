@@ -1,6 +1,6 @@
-// Shared visualizer configuration
-// The speed control was removed from the UI; algorithms now always
-// run at the smallest (slowest, most watchable) step interval.
-export const DEFAULT_STEP_DELAY_MS = 500;
-export const MIN_STEP_DELAY_MS = 500;
-export const MAX_STEP_DELAY_MS = 500;
+// Shared visualizer configuration.
+
+// Playback speeds, in algorithm steps per animation frame. 1 is the most
+// watchable; the higher ones are for large inputs and slow algorithms.
+export const SPEEDS = [1, 2, 4, 8];
+export const DEFAULT_SPEED = 1;

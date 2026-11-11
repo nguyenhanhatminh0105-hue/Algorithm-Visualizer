@@ -1,9 +1,9 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
-import { playTone, playStep, playFinish, playSequenceSweep, setMuted, valueToTone } from './audio.js';
+import { playTone, playStep, playFinish, playSequenceSweep, setMuted, valueToTone } from './audio.js?v=2';
 import { SPEEDS, DEFAULT_SPEED } from './config.js';
 import { defaultContenders, firstFrame } from './defaults.js';
-import { getRevealPlan, animateReveal } from './reveal.js';
+import { getRevealPlan, animateReveal } from './reveal.js?v=2';
 import { countSteps, progress, places, ordinal, gapToWinner, summary } from './standings.js';
 
 const tabList = document.getElementById('category-tabs');

@@ -2,8 +2,9 @@ let sharedAudioContext = null;
 let sharedCompressor = null;
 let isMuted = false;
 
-// Master volume (0..1) applied after the compressor. Defaults to 10%.
-const DEFAULT_VOLUME = 0.1;
+// Master volume (0..1) applied after the compressor. Loudness roughly halves
+// every -10 dB, so 0.03 (about -30 dB) sounds like ~10% of full volume.
+const DEFAULT_VOLUME = 0.03;
 let sharedMasterGain = null;
 
 // C major pentatonic across two octaves: no combination of these notes ever

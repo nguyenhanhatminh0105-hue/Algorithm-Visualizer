@@ -94,8 +94,9 @@ How to read these:
   cell explored. It is a fair way to compare algorithms on the same input, but
   it is not running time.
 - **Depth-first search reaches the goal in the fewest steps, but its route is
-  not the shortest.** Breadth-first search, Dijkstra and A* explore more and
-  return a shortest route. A* gets there in fewer steps than the other two.
+  rarely the best one.** Breadth-first search explores more and finds the route
+  with the fewest cells. Dijkstra and A* find the cheapest route on this
+  weighted grid, and A* needs fewer steps to do it.
 - **Memoization skips table cells the answer never needs**, which is why it
   beats filling the whole table.
 - **Knuth-Morris-Pratt only edges out naive search here** because the text is

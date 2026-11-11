@@ -2,6 +2,10 @@ let sharedAudioContext = null;
 let sharedCompressor = null;
 let isMuted = false;
 
+// Master volume (0..1) applied after the compressor. Defaults to 10%.
+const DEFAULT_VOLUME = 0.1;
+let sharedMasterGain = null;
+
 // C major pentatonic across two octaves: no combination of these notes ever
 // clashes, so when multiple contenders' tones overlap it still sounds like
 // music instead of noise.
@@ -18,7 +22,10 @@ function getAudioGraph() {
     sharedCompressor.ratio.value = 8;
     sharedCompressor.attack.value = 0.003;
     sharedCompressor.release.value = 0.15;
-    sharedCompressor.connect(sharedAudioContext.destination);
+    sharedMasterGain = sharedAudioContext.createGain();
+    sharedMasterGain.gain.value = DEFAULT_VOLUME;
+    sharedCompressor.connect(sharedMasterGain);
+    sharedMasterGain.connect(sharedAudioContext.destination);
   }
   return { ctx: sharedAudioContext, compressor: sharedCompressor };
 }

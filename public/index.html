@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Algorithm Arena</title>
+<meta name="description" content="Race algorithms against each other on the same input: sorting, pathfinding, graph and tree traversal, dynamic programming and string matching." />
+<meta name="theme-color" content="#0d0f16" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0f16'/%3E%3Crect x='7' y='17' width='4' height='9' rx='1' fill='%235b7fff'/%3E%3Crect x='14' y='11' width='4' height='15' rx='1' fill='%237c5cff'/%3E%3Crect x='21' y='6' width='4' height='20' rx='1' fill='%23e6e8ef'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,40 +13,62 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<header>
-  <h1>Algorithm Arena</h1>
-  <p>Pick a category, tune the difficulty, add contenders, and watch them race.</p>
+<header class="topbar">
+  <h1 class="brand">
+    <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+      <rect x="5" y="17" width="5" height="10" rx="1.5" fill="#5b7fff" />
+      <rect x="13.5" y="11" width="5" height="16" rx="1.5" fill="#7c5cff" />
+      <rect x="22" y="5" width="5" height="22" rx="1.5" fill="#e6e8ef" />
+    </svg>
+    Algorithm Arena
+  </h1>
+  <div id="category-tabs" class="tabs" role="tablist" aria-label="Category"></div>
+  <a class="source" href="https://github.com/nguyenhanhatminh0105-hue/Algorithm-Visualizer">Source</a>
 </header>
+
 <main>
-  <section class="controls">
-    <div class="control-group">
-      <label for="category-select">Category</label>
-      <select id="category-select"></select>
-      <p id="category-description" class="hint"></p>
+  <section class="setup" aria-labelledby="category-title">
+    <div class="intro">
+      <h2 id="category-title"></h2>
+      <p id="category-description"></p>
     </div>
-    <div class="control-group">
-      <label id="difficulty-label" for="difficulty-range">Difficulty</label>
-      <input type="range" id="difficulty-range" />
-      <span id="difficulty-value"></span>
+
+    <div class="controls">
+      <div class="field">
+        <label id="difficulty-label" for="difficulty-range">Difficulty</label>
+        <div class="range-row">
+          <input type="range" id="difficulty-range" />
+          <output id="difficulty-value" for="difficulty-range"></output>
+        </div>
+      </div>
+
+      <fieldset class="field">
+        <legend>Speed</legend>
+        <div id="speed-options" class="segmented"></div>
+      </fieldset>
+
+      <div class="actions">
+        <button id="mute-btn" type="button" class="icon-btn" aria-pressed="true" aria-label="Sound"></button>
+        <button id="reset-btn" type="button">New input</button>
+        <button id="run-btn" type="button" class="primary"></button>
+      </div>
     </div>
-    <div class="control-group">
-      <label for="algorithm-select">Algorithm</label>
-      <select id="algorithm-select"></select>
-      <button id="add-contender" type="button">Add contender</button>
+
+    <div class="lineup">
+      <span id="lineup-label" class="lineup-label">Contenders</span>
+      <div id="contender-chips" class="chips" role="group" aria-labelledby="lineup-label"></div>
     </div>
-    <div class="control-group">
-      <label>Contenders</label>
-      <ul id="contender-list"></ul>
-    </div>
-    <div class="control-group buttons">
-      <button id="run-btn" type="button">Run</button>
-      <button id="pause-btn" type="button">Pause</button>
-      <button id="reset-btn" type="button">Reset</button>
-      <button id="mute-btn" type="button">Mute</button>
-    </div>
-    <p id="status" class="status"></p>
   </section>
-  <section id="arena" class="arena"></section>
+
+  <section class="standings" aria-label="Standings">
+    <ol id="standings-list"></ol>
+    <div class="standings-foot">
+      <p id="status" class="status" role="status"></p>
+      <ul id="legend" class="legend" aria-label="Colour key"></ul>
+    </div>
+  </section>
+
+  <section id="arena" class="arena" aria-label="Race"></section>
 </main>
 <script type="module" src="js/main.js"></script>
 </body>

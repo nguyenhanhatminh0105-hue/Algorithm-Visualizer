@@ -1,156 +1,72 @@
 import { CATEGORIES } from './categories.js';
 import { Engine, ContenderRun } from './engine.js';
-import { playTone, playStep, playFinish, playSequenceSweep, setMuted, valueToTone, positionToTone } from './audio.js';
-import { DEFAULT_STEP_DELAY_MS } from './config.js';
+import { playTone, playStep, playFinish, playSequenceSweep, setMuted, valueToTone } from './audio.js';
+import { SPEEDS, DEFAULT_SPEED } from './config.js';
 import { defaultContenders, firstFrame } from './defaults.js';
-import {
-  renderReveal,
-  renderGraphReveal,
-  renderTreeReveal,
-  renderMazeReveal,
-  renderDpReveal,
-  renderStringReveal,
-} from './render.js';
+import { getRevealPlan, animateReveal } from './reveal.js';
+import { countSteps, progress, places, ordinal, gapToWinner, summary } from './standings.js';
 
-const categorySelect = document.getElementById('category-select');
+const tabList = document.getElementById('category-tabs');
+const categoryTitle = document.getElementById('category-title');
 const categoryDescription = document.getElementById('category-description');
 const difficultyLabel = document.getElementById('difficulty-label');
 const difficultyRange = document.getElementById('difficulty-range');
 const difficultyValue = document.getElementById('difficulty-value');
-const algorithmSelect = document.getElementById('algorithm-select');
-const addContenderBtn = document.getElementById('add-contender');
-const contenderList = document.getElementById('contender-list');
+const speedOptions = document.getElementById('speed-options');
+const chipGroup = document.getElementById('contender-chips');
+const standingsList = document.getElementById('standings-list');
+const legendList = document.getElementById('legend');
 const arena = document.getElementById('arena');
 const runBtn = document.getElementById('run-btn');
-const pauseBtn = document.getElementById('pause-btn');
 const resetBtn = document.getElementById('reset-btn');
 const muteBtn = document.getElementById('mute-btn');
 const statusEl = document.getElementById('status');
 
+// One colour per contender, kept apart from the colours the canvases use for
+// algorithm state (blue, amber, red, green), so a lane never looks like a state.
+const LANE_COLORS = ['#6b8cff', '#b48cff', '#3fd0c0', '#f27fb2', '#d9c27a'];
+
+const ICONS = {
+  play: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/></svg>',
+  soundOn: '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.75h2.75L10 4.5v11l-3.75-3.25H3.5z"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15.25 5.25a6.75 6.75 0 0 1 0 9.5"/></svg>',
+  soundOff: '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.75h2.75L10 4.5v11l-3.75-3.25H3.5z"/><path d="M13.25 7.75l4 4.5M17.25 7.75l-4 4.5"/></svg>',
+};
+
+const IDLE_STATUS = 'Every contender gets the same input. Fewest steps wins.';
+
 let currentCategory = CATEGORIES[0];
+let selected = new Set(); // ids of the algorithms in the race
 let contenders = [];
 let panels = new Map();
+let rows = new Map();
+let totals = new Map(); // steps each contender will need: its finish line
 let engine = null;
-let uidCounter = 0;
 let problem = null; // the next race's input, drawn in every panel before Run
+let phase = 'idle'; // idle | running | paused | finished
+let speed = DEFAULT_SPEED;
 let isMuted = false;
 const lastRunSteps = new Map();
 const lastRunDone = new Map();
 
-function populateCategories() {
-  categorySelect.innerHTML = '';
-  CATEGORIES.forEach((category) => {
-    const option = document.createElement('option');
-    option.value = category.id;
-    option.textContent = category.name;
-    categorySelect.appendChild(option);
-  });
+const formatSteps = (count) => `${count.toLocaleString('en-US')} ${count === 1 ? 'step' : 'steps'}`;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
 }
 
-function removeAlgorithmOption(algorithmId) {
-  const option = algorithmSelect.querySelector(`option[value="${algorithmId}"]`);
-  if (option) option.remove();
+function setStatus(text) {
+  statusEl.textContent = text;
 }
 
-function addAlgorithmOption(algorithm) {
-  const targetIndex = currentCategory.algorithms.findIndex((a) => a.id === algorithm.id);
-  const nextOption = Array.from(algorithmSelect.options).find((opt) => {
-    const idx = currentCategory.algorithms.findIndex((a) => a.id === opt.value);
-    return idx > targetIndex;
-  });
-  const option = document.createElement('option');
-  option.value = algorithm.id;
-  option.textContent = algorithm.name;
-  algorithmSelect.insertBefore(option, nextOption || null);
-}
-
-function selectCategory(id) {
-  stopRace();
-  currentCategory = CATEGORIES.find((category) => category.id === id) || CATEGORIES[0];
-  categoryDescription.textContent = currentCategory.description;
-  difficultyLabel.textContent = currentCategory.difficulty.label;
-  difficultyRange.min = currentCategory.difficulty.min;
-  difficultyRange.max = currentCategory.difficulty.max;
-  difficultyRange.step = currentCategory.difficulty.step;
-  difficultyRange.value = currentCategory.difficulty.default;
-  difficultyValue.textContent = difficultyRange.value;
-
-  contenders = defaultContenders(currentCategory).map((algorithm) => ({ uid: uidCounter++, algorithm, name: algorithm.name }));
-  problem = null;
-
-  algorithmSelect.innerHTML = '';
-  currentCategory.algorithms.forEach((algorithm) => {
-    if (contenders.some((contender) => contender.algorithm.id === algorithm.id)) return;
-    const option = document.createElement('option');
-    option.value = algorithm.id;
-    option.textContent = algorithm.name;
-    algorithmSelect.appendChild(option);
-  });
-
-  renderContenderList();
-  renderArena();
-  setStatus('Ready. Press Run to start the race.');
-}
-
-function renderContenderList() {
-  contenderList.innerHTML = '';
-  contenders.forEach((contender, index) => {
-    const item = document.createElement('li');
-    const label = document.createElement('span');
-    label.textContent = contender.name;
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.textContent = 'Remove';
-    removeButton.className = 'remove-btn';
-    removeButton.addEventListener('click', () => {
-      stopRace();
-      contenders.splice(index, 1);
-      addAlgorithmOption(contender.algorithm);
-      renderContenderList();
-      renderArena();
-    });
-    item.appendChild(label);
-    item.appendChild(removeButton);
-    contenderList.appendChild(item);
-  });
-}
-
-function renderArena() {
-  arena.innerHTML = '';
-  panels = new Map();
-  contenders.forEach((contender) => {
-    const panel = document.createElement('div');
-    panel.className = 'panel';
-
-    const title = document.createElement('h3');
-    title.textContent = contender.name;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 360;
-    canvas.height = 240;
-
-    const meta = document.createElement('p');
-    meta.className = 'meta';
-    meta.textContent = 'Steps: 0';
-
-    panel.appendChild(title);
-    panel.appendChild(canvas);
-    panel.appendChild(meta);
-    arena.appendChild(panel);
-
-    panels.set(contender.uid, { canvas, ctx: canvas.getContext('2d'), meta, panel });
-  });
-  drawStartingFrames();
-}
-
-/** Draws each contender at its starting position, so the arena is never an empty box. */
-function drawStartingFrames() {
-  if (!problem) problem = currentCategory.createProblem(Number(difficultyRange.value));
-  contenders.forEach((contender) => {
-    const panel = panels.get(contender.uid);
-    const frame = firstFrame(currentCategory, contender.algorithm, problem);
-    if (panel && frame) currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, frame);
-  });
+function setPhase(next) {
+  phase = next;
+  document.body.dataset.phase = next;
+  const label = { idle: 'Run race', running: 'Pause', paused: 'Resume', finished: 'Race again' }[next];
+  runBtn.innerHTML = `${next === 'running' ? ICONS.pause : ICONS.play}<span>${label}</span>`;
 }
 
 /** Any change to the setup ends the current race, so it can't keep drawing into the new panels. */
@@ -159,203 +75,288 @@ function stopRace() {
   engine = null;
 }
 
-function setStatus(text) {
-  statusEl.textContent = text;
+// ---------- Setup controls ----------
+
+function buildTabs() {
+  CATEGORIES.forEach((category) => {
+    const tab = el('button', 'tab', category.tab || category.name);
+    tab.type = 'button';
+    tab.id = `tab-${category.id}`;
+    tab.setAttribute('role', 'tab');
+    tab.dataset.id = category.id;
+    tab.addEventListener('click', () => selectCategory(category.id));
+    tabList.appendChild(tab);
+  });
+  tabList.addEventListener('keydown', (event) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    const index = CATEGORIES.indexOf(currentCategory);
+    const next = CATEGORIES[(index + step + CATEGORIES.length) % CATEGORIES.length];
+    selectCategory(next.id);
+    document.getElementById(`tab-${next.id}`).focus();
+    event.preventDefault();
+  });
 }
 
-// The found path's grid cells alone don't preserve start-to-goal order, so
-// walk the chain of path-adjacent cells to recover it. Path cells form a
-// simple line (each has 1 or 2 path-neighbors); the two degree-1 ends are the
-// cell next to start and the end cell itself (frame.current) - trace from the
-// other one.
-function tracePathOrder(grid, endCell) {
-  const rows = grid.length;
-  const cols = grid[0].length;
-  const isPath = (r, c) => r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] === 'path';
-  const cells = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (isPath(r, c)) cells.push([r, c]);
-    }
-  }
-  if (cells.length <= 1) return cells;
-
-  const key = ([r, c]) => `${r},${c}`;
-  const neighborsOf = ([r, c]) => [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([nr, nc]) => isPath(nr, nc));
-  const endpoints = cells.filter((cell) => neighborsOf(cell).length === 1);
-  const startCell = endpoints.find(([r, c]) => !(endCell && r === endCell[0] && c === endCell[1])) || endpoints[0] || cells[0];
-
-  const ordered = [startCell];
-  const visited = new Set([key(startCell)]);
-  let current = startCell;
-  while (ordered.length < cells.length) {
-    const next = neighborsOf(current).find((n) => !visited.has(key(n)));
-    if (!next) break;
-    ordered.push(next);
-    visited.add(key(next));
-    current = next;
-  }
-  return ordered;
+function buildSpeedOptions() {
+  SPEEDS.forEach((value) => {
+    const label = el('label', 'segment');
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'speed';
+    input.value = value;
+    input.checked = value === speed;
+    input.addEventListener('change', () => {
+      speed = value;
+      if (engine) engine.setSpeed(speed);
+    });
+    label.appendChild(input);
+    label.appendChild(el('span', '', `${value}×`));
+    speedOptions.appendChild(label);
+  });
 }
 
-// Per category: an ordered low-to-high sequence of "reveal items", the
-// matching ascending pitches, and a render(ctx, width, height, revealedCount)
-// that draws the first revealedCount items (in that order) green and the rest
-// white/neutral. Returns null if the category or frame doesn't support it.
-function getRevealPlan(categoryId, frame) {
-  if (!frame) return null;
-
-  if (categoryId === 'sorting' || categoryId === 'searching') {
-    const array = frame.array;
-    if (!Array.isArray(array) || !array.every((v) => typeof v === 'number')) return null;
-    const order = array.map((v, i) => i).sort((a, b) => array[a] - array[b]);
-    return {
-      total: order.length,
-      pitches: order.map((i) => valueToTone(array[i])),
-      render: (ctx, w, h, count) => renderReveal(ctx, w, h, array, count),
-    };
-  }
-
-  if (categoryId === 'graph') {
-    const visited = frame.visited;
-    if (!Array.isArray(visited) || !visited.length) return null;
-    return {
-      total: visited.length,
-      pitches: visited.map((_, i) => positionToTone(i, visited.length)),
-      render: (ctx, w, h, count) => renderGraphReveal(ctx, w, h, frame, new Set(visited.slice(0, count))),
-    };
-  }
-
-  if (categoryId === 'tree') {
-    if (!frame.positions) return null;
-    const order = [...frame.positions.entries()].sort((a, b) => a[1].value - b[1].value).map(([id]) => id);
-    if (!order.length) return null;
-    return {
-      total: order.length,
-      pitches: order.map((id) => valueToTone(frame.positions.get(id).value)),
-      render: (ctx, w, h, count) => renderTreeReveal(ctx, w, h, frame, new Set(order.slice(0, count))),
-    };
-  }
-
-  if (categoryId === 'pathfinding') {
-    if (!frame.grid) return null;
-    const order = tracePathOrder(frame.grid, frame.current);
-    if (!order.length) return null;
-    return {
-      total: order.length,
-      pitches: order.map((_, i) => positionToTone(i, order.length)),
-      render: (ctx, w, h, count) =>
-        renderMazeReveal(ctx, w, h, frame, new Set(order.slice(0, count).map(([r, c]) => `${r},${c}`))),
-    };
-  }
-
-  if (categoryId === 'dp') {
-    if (!frame.table) return null;
-    const cells = [];
-    frame.table.forEach((row, r) => row.forEach((value, c) => {
-      if (value >= 0) cells.push([r, c, value]);
-    }));
-    if (!cells.length) return null;
-    cells.sort((a, b) => a[2] - b[2]);
-    const maxValue = Math.max(1, ...cells.map((c) => c[2]));
-    return {
-      total: cells.length,
-      pitches: cells.map(([, , v]) => valueToTone(v, maxValue)),
-      render: (ctx, w, h, count) =>
-        renderDpReveal(ctx, w, h, frame, new Set(cells.slice(0, count).map(([r, c]) => `${r},${c}`))),
-    };
-  }
-
-  if (categoryId === 'string') {
-    const matches = frame.matches;
-    if (!Array.isArray(matches) || !matches.length) return null;
-    return {
-      total: matches.length,
-      pitches: matches.map((_, i) => positionToTone(i, matches.length)),
-      render: (ctx, w, h, count) => renderStringReveal(ctx, w, h, frame, count),
-    };
-  }
-
-  return null;
-}
-
-// Paints a low-to-high reveal wipe on panel's canvas over totalDurationMs,
-// matching the pacing of the finish sweep sound. Sets panel.revealing so the
-// engine's normal per-tick render leaves this canvas alone until the wipe
-// finishes (it would otherwise redraw over it every frame).
-function animateReveal(panel, plan, totalDurationMs = 700) {
-  panel.revealing = true;
-  const start = performance.now();
-  function tick(now) {
-    const elapsed = now - start;
-    const revealedCount = Math.min(plan.total, Math.round((elapsed / totalDurationMs) * plan.total));
-    plan.render(panel.ctx, panel.canvas.width, panel.canvas.height, revealedCount);
-    if (elapsed < totalDurationMs) {
-      requestAnimationFrame(tick);
-    } else {
-      panel.revealing = false;
-    }
-  }
-  requestAnimationFrame(tick);
-}
-
-addContenderBtn.addEventListener('click', () => {
-  const algorithm = currentCategory.algorithms.find((a) => a.id === algorithmSelect.value);
-  if (!algorithm) return;
+function selectCategory(id) {
   stopRace();
-  contenders.push({ uid: uidCounter++, algorithm, name: algorithm.name });
-  removeAlgorithmOption(algorithm.id);
-  renderContenderList();
-  renderArena();
-});
+  currentCategory = CATEGORIES.find((category) => category.id === id) || CATEGORIES[0];
 
-difficultyRange.addEventListener('input', () => {
+  tabList.querySelectorAll('.tab').forEach((tab) => {
+    const active = tab.dataset.id === currentCategory.id;
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+    if (active && tabList.scrollWidth > tabList.clientWidth) {
+      tabList.scrollTo({ left: tab.offsetLeft - tabList.offsetLeft - 16 });
+    }
+  });
+  if (location.hash.slice(1) !== currentCategory.id) {
+    history.replaceState(null, '', `#${currentCategory.id}`);
+  }
+
+  categoryTitle.textContent = currentCategory.name;
+  categoryDescription.textContent = currentCategory.description;
+  difficultyLabel.textContent = currentCategory.difficulty.label;
+  difficultyRange.min = currentCategory.difficulty.min;
+  difficultyRange.max = currentCategory.difficulty.max;
+  difficultyRange.step = currentCategory.difficulty.step;
+  difficultyRange.value = currentCategory.difficulty.default;
   difficultyValue.textContent = difficultyRange.value;
-});
-difficultyRange.addEventListener('change', () => {
-  stopRace();
+  paintRange();
+
+  selected = new Set(defaultContenders(currentCategory).map((algorithm) => algorithm.id));
   problem = null;
+  renderLegend();
+  resetRace(IDLE_STATUS);
+}
+
+/** Rebuilds the lineup, scoreboard and panels for the current selection. */
+function resetRace(status) {
+  stopRace();
+  contenders = currentCategory.algorithms
+    .map((algorithm, index) => ({ uid: algorithm.id, algorithm, name: algorithm.name, color: LANE_COLORS[index % LANE_COLORS.length] }))
+    .filter((contender) => selected.has(contender.uid));
+  renderChips();
+  renderStandings();
   renderArena();
-  setStatus('Ready. Press Run to start the race.');
-});
+  setPhase('idle');
+  setStatus(status);
+}
 
-categorySelect.addEventListener('change', () => selectCategory(categorySelect.value));
+function renderChips() {
+  chipGroup.innerHTML = '';
+  currentCategory.algorithms.forEach((algorithm, index) => {
+    const chip = el('button', 'chip');
+    chip.type = 'button';
+    chip.style.setProperty('--lane', LANE_COLORS[index % LANE_COLORS.length]);
+    chip.setAttribute('aria-pressed', String(selected.has(algorithm.id)));
+    chip.appendChild(el('span', 'dot'));
+    chip.appendChild(el('span', '', algorithm.name));
+    chip.addEventListener('click', () => {
+      if (selected.has(algorithm.id)) {
+        if (selected.size <= 2) {
+          setStatus('A race needs at least two contenders. Add another before removing this one.');
+          return;
+        }
+        selected.delete(algorithm.id);
+      } else {
+        selected.add(algorithm.id);
+      }
+      resetRace(IDLE_STATUS);
+    });
+    chipGroup.appendChild(chip);
+  });
+}
 
-runBtn.addEventListener('click', () => {
-  if (contenders.length < 2) {
-    setStatus('Add at least two contenders before running.');
-    return;
-  }
-  if (engine) engine.pause();
+function renderLegend() {
+  legendList.innerHTML = '';
+  (currentCategory.legend || []).forEach(([swatch, label]) => {
+    const item = el('li');
+    const mark = el('span', 'swatch');
+    if (['ring', 'dot', 'outline'].includes(swatch)) mark.classList.add(`swatch-${swatch}`);
+    else mark.style.background = swatch;
+    item.appendChild(mark);
+    item.appendChild(document.createTextNode(label));
+    legendList.appendChild(item);
+  });
+}
 
+// The slider's filled portion is drawn with a gradient stop, which CSS can't
+// derive from the input's value on its own.
+function paintRange() {
+  const { min, max, value } = difficultyRange;
+  difficultyRange.style.setProperty('--fill', `${((value - min) / (max - min)) * 100}%`);
+}
+
+// ---------- Scoreboard ----------
+
+function renderStandings() {
+  standingsList.innerHTML = '';
+  rows = new Map();
+  contenders.forEach((contender) => {
+    const item = el('li', 'lane');
+    item.style.setProperty('--lane', contender.color);
+    const place = el('span', 'place');
+    const name = el('span', 'name');
+    name.appendChild(el('span', 'dot'));
+    name.appendChild(el('span', '', contender.name));
+    const track = el('span', 'track');
+    const fill = el('span', 'fill');
+    track.appendChild(fill);
+    const steps = el('span', 'steps', formatSteps(0));
+    const gap = el('span', 'gap');
+    item.append(place, name, track, steps, gap);
+    standingsList.appendChild(item);
+    rows.set(contender.uid, { item, place, fill, steps, gap });
+  });
+}
+
+function updateStandings(allRuns) {
+  const finishedPlaces = places(allRuns);
+  const firsts = [...finishedPlaces.values()].filter((place) => place === 1).length;
+  const winnerSteps = Math.min(...allRuns.filter((run) => run.done).map((run) => run.finishedAtStep));
+  allRuns.forEach((run) => {
+    const row = rows.get(run.id);
+    const panel = panels.get(run.id);
+    if (!row || !panel) return;
+    row.fill.style.transform = `scaleX(${progress(run.steps, totals.get(run.id))})`;
+    row.steps.textContent = formatSteps(run.steps);
+    panel.steps.textContent = formatSteps(run.steps);
+
+    const place = finishedPlaces.get(run.id);
+    if (!place) return;
+    row.place.textContent = ordinal(place);
+    panel.place.textContent = ordinal(place);
+    row.gap.textContent = place === 1 ? (firsts > 1 ? 'Tied for first' : 'Winner') : gapToWinner(run, winnerSteps);
+    row.item.classList.toggle('winner', place === 1);
+    panel.panel.classList.toggle('winner', place === 1);
+  });
+}
+
+// ---------- Race panels ----------
+
+/** Matches the canvas's pixel grid to its size on screen, so drawings stay sharp at any width. */
+function sizePanel(panel) {
+  const width = panel.canvas.clientWidth;
+  if (!width) return false;
+  const height = Math.round((width * 2) / 3);
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  panel.width = width;
+  panel.height = height;
+  panel.canvas.width = Math.round(width * ratio);
+  panel.canvas.height = Math.round(height * ratio);
+  panel.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return true;
+}
+
+/** Draws now, and remembers how, so the panel can repaint itself after a resize. */
+function draw(panel, paint) {
+  panel.redraw = paint;
+  paint();
+}
+
+function renderArena() {
+  arena.innerHTML = '';
+  arena.dataset.count = contenders.length;
+  panels = new Map();
+  contenders.forEach((contender) => {
+    const panel = el('article', 'panel');
+    panel.style.setProperty('--lane', contender.color);
+
+    const head = el('header', 'panel-head');
+    const title = el('h3');
+    title.appendChild(el('span', 'dot'));
+    title.appendChild(el('span', '', contender.name));
+    const place = el('span', 'place');
+    const steps = el('span', 'steps', formatSteps(0));
+    head.append(title, place, steps);
+
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', `${contender.name} working on the ${currentCategory.name.toLowerCase()} problem`);
+
+    panel.append(head, canvas);
+    arena.appendChild(panel);
+
+    const entry = { canvas, ctx: canvas.getContext('2d'), panel, place, steps, width: 0, height: 0, redraw: null };
+    sizePanel(entry);
+    panels.set(contender.uid, entry);
+  });
+  drawStartingFrames();
+}
+
+/** Draws each contender at its starting position, so the arena is never an empty box. */
+function drawStartingFrames() {
+  if (!problem) problem = currentCategory.createProblem(Number(difficultyRange.value));
+  totals = new Map();
+  contenders.forEach((contender) => {
+    totals.set(contender.uid, countSteps(currentCategory, contender.algorithm, problem));
+    const panel = panels.get(contender.uid);
+    const frame = firstFrame(currentCategory, contender.algorithm, problem);
+    if (panel && frame) draw(panel, () => currentCategory.render(panel.ctx, panel.width, panel.height, frame));
+  });
+}
+
+new ResizeObserver(() => {
+  panels.forEach((panel) => {
+    if (panel.canvas.clientWidth === panel.width) return;
+    if (sizePanel(panel) && panel.redraw && !panel.revealing) panel.redraw();
+  });
+}).observe(arena);
+
+// ---------- Running a race ----------
+
+function startRace() {
+  stopRace();
+  renderStandings();
   renderArena(); // draws the starting frames from `problem`, which this race then uses
+
   // On a phone the race sits below the controls; bring it into view.
-  if (arena.getBoundingClientRect().top > innerHeight * 0.5) {
+  const board = standingsList.closest('.standings');
+  if (board.getBoundingClientRect().top > innerHeight * 0.5) {
     const instant = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    arena.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'start' });
+    board.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'start' });
   }
   const raceProblem = problem;
   problem = null; // the next race gets a fresh input
+  const category = currentCategory;
 
   lastRunSteps.clear();
   lastRunDone.clear();
 
   const runs = contenders.map((contender) => {
-    const generator = currentCategory.createRun(contender.algorithm, raceProblem);
+    const generator = category.createRun(contender.algorithm, raceProblem);
     return new ContenderRun(contender.uid, contender.name, generator);
   });
 
   engine = new Engine({
-    stepsPerTick: Math.max(1, Math.round(DEFAULT_STEP_DELAY_MS / 500)),
+    stepsPerTick: speed,
     onTick(allRuns) {
       allRuns.forEach((run) => {
         const panel = panels.get(run.id);
         if (!panel) return;
-        if (!panel.revealing) {
-          currentCategory.render(panel.ctx, panel.canvas.width, panel.canvas.height, run.frame);
+        if (!panel.revealing && !lastRunDone.get(run.id)) {
+          const frame = run.frame;
+          draw(panel, () => category.render(panel.ctx, panel.width, panel.height, frame));
         }
-        panel.meta.textContent = `Steps: ${run.steps}${run.done ? ' — finished' : ''}`;
-        panel.panel.classList.toggle('finished', run.done);
 
         if (run.steps !== lastRunSteps.get(run.id)) {
           lastRunSteps.set(run.id, run.steps);
@@ -370,9 +371,10 @@ runBtn.addEventListener('click', () => {
         }
 
         if (run.done && !lastRunDone.get(run.id)) {
-          const plan = getRevealPlan(currentCategory.id, run.frame);
+          const plan = getRevealPlan(category.id, run.frame);
           if (plan) {
             playSequenceSweep(plan.pitches);
+            panel.redraw = () => plan.render(panel.ctx, panel.width, panel.height, plan.total);
             animateReveal(panel, plan);
           } else {
             playFinish();
@@ -380,38 +382,70 @@ runBtn.addEventListener('click', () => {
         }
         lastRunDone.set(run.id, run.done);
       });
-      if (allRuns.every((run) => run.done)) {
-        const winner = allRuns.reduce((best, run) =>
-          run.finishedAtStep < best.finishedAtStep ? run : best
-        );
-        const winnerPanel = panels.get(winner.id);
-        if (winnerPanel) winnerPanel.panel.classList.add('winner');
-        setStatus(`${winner.algorithmName} finished first in ${winner.finishedAtStep} steps.`);
+
+      updateStandings(allRuns);
+      const result = summary(allRuns);
+      if (result) {
+        setPhase('finished');
+        setStatus(result);
       }
     },
   });
   engine.setRuns(runs);
   engine.start();
-  setStatus('Running…');
-});
+  setPhase('running');
+  setStatus('Racing…');
+}
 
-pauseBtn.addEventListener('click', () => {
-  if (engine) engine.pause();
-  setStatus('Paused.');
+runBtn.addEventListener('click', () => {
+  if (phase === 'running') {
+    engine.pause();
+    setPhase('paused');
+    setStatus('Paused.');
+  } else if (phase === 'paused') {
+    engine.start();
+    setPhase('running');
+    setStatus('Racing…');
+  } else {
+    startRace();
+  }
 });
 
 resetBtn.addEventListener('click', () => {
-  if (engine) engine.pause();
   problem = null;
-  renderArena();
-  setStatus('Reset. Press Run to start again.');
+  resetRace(IDLE_STATUS);
 });
 
+difficultyRange.addEventListener('input', () => {
+  difficultyValue.textContent = difficultyRange.value;
+  paintRange();
+});
+difficultyRange.addEventListener('change', () => {
+  problem = null;
+  resetRace(IDLE_STATUS);
+});
+
+function paintMute() {
+  muteBtn.innerHTML = isMuted ? ICONS.soundOff : ICONS.soundOn;
+  muteBtn.setAttribute('aria-pressed', String(!isMuted));
+  muteBtn.title = isMuted ? 'Sound is off' : 'Sound is on';
+}
 muteBtn.addEventListener('click', () => {
   isMuted = !isMuted;
   setMuted(isMuted);
-  muteBtn.textContent = isMuted ? 'Muted' : 'Mute';
+  paintMute();
 });
 
-populateCategories();
-selectCategory(CATEGORIES[0].id);
+window.addEventListener('hashchange', () => {
+  const id = location.hash.slice(1);
+  if (id !== currentCategory.id && CATEGORIES.some((category) => category.id === id)) selectCategory(id);
+});
+
+buildTabs();
+buildSpeedOptions();
+paintMute();
+selectCategory(location.hash.slice(1));
+// Canvas text is drawn in Inter; repaint once it has loaded.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => panels.forEach((panel) => panel.redraw && !panel.revealing && panel.redraw()));
+}
